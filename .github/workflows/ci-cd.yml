@@ -7,12 +7,13 @@ on:
     branches: [ "main", "master" ]
 
 jobs:
-  # 1. Code Quality & Formatting
+  # 1. Code Quality Stage (Parallel)
   lint:
+    name: 🛡️ Linting & Formatting
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Use Node.js
+    - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20.x'
@@ -24,17 +25,18 @@ jobs:
       run: |
         cd backend
         npm ci
-        # Add lint command if available (e.g., eslint)
+        # If backend has a lint script, run it:
+        # npm run lint
     - name: Frontend Lint
       run: |
         cd frontend
         npm ci
         npm run lint
 
-  # 2. Backend Logic & DB Integrity
+  # 2. Logic & DB Integrity Stage (Parallel)
   backend-verification:
+    name: 🧠 Backend & DB Integrity
     runs-on: ubuntu-latest
-    needs: lint
     services:
       postgres:
         image: postgres:15
@@ -56,7 +58,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Use Node.js
+    - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20.x'
@@ -64,7 +66,7 @@ jobs:
         cache-dependency-path: './backend/package-lock.json'
     - name: Install dependencies
       run: npm ci
-    - name: Run Migrations
+    - name: Verify Migration Consistency
       run: ./node_modules/.bin/knex migrate:latest
       env:
         DB_HOST: localhost
@@ -80,41 +82,45 @@ jobs:
         DB_PASSWORD: password
         DB_NAME: inventory_system_test
 
-  # 3. Frontend Build Verification
+  # 3. Frontend Build Verification (Parallel)
   frontend-build:
+    name: 🏗️ Frontend Build Check
     runs-on: ubuntu-latest
-    needs: lint
     defaults:
       run:
         working-directory: ./frontend
     steps:
     - uses: actions/checkout@v4
-    - name: Use Node.js
+    - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20.x'
         cache: 'npm'
         cache-dependency-path: './frontend/package-lock.json'
     - run: npm ci
-    - name: Verify Build (Vite)
+    - name: Verify Production Build
       run: npm run build
+    - name: Upload Build Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: frontend-dist
+        path: frontend/dist/
 
-  # 4. Docker Config Verification
+  # 4. Docker Audit (Parallel)
   docker-audit:
+    name: 🐳 Docker Health Audit
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Verify Docker Compose Syntax
+    - name: Validate Compose Config
       run: docker-compose config --quiet
 
-  # 5. Deployment (Windows Target)
-  # This job represents the 'Ready for Push' state. 
-  # Actual deployment to Windows usually requires a self-hosted runner 
-  # or SSH/WinRM access to the Windows machine.
-  deploy:
-    needs: [backend-verification, frontend-build, docker-audit]
+  # 5. Deployment Readiness (Sequential after Parallelized checks)
+  deploy-readiness:
+    name: 🚀 Production Readiness
+    needs: [lint, backend-verification, frontend-build, docker-audit]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest
     steps:
-    - name: Ready for Deployment
-      run: echo "All tests passed. System is ready for deployment on Windows Server."
+    - name: All Checks Passed
+      run: echo "System is stable. Ready for Windows/WSL2 production deployment."
