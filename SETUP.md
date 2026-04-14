@@ -1,93 +1,125 @@
-# Phoenix Inventory: Developer Setup Guide
+# Phoenix Inventory: Deployment & Setup Guide
 
-Welcome to the Phoenix Inventory team! This guide will walk you through setting up your local development environment on **Windows**.
+This guide provides step-by-step instructions for setting up the Phoenix Inventory system in both development and production environments, with a primary focus on **Windows Server 2019**.
+
+---
+
+## 📋 Table of Contents
+1. [Prerequisites](#1-prerequisites)
+2. [Database Setup (PostgreSQL 15)](#2-database-setup-postgresql-15)
+3. [Native Windows Server Production Setup](#3-native-windows-server-production-setup)
+4. [Docker Setup (Development)](#4-docker-setup-development)
+5. [Connecting via IP Address](#5-connecting-via-ip-address)
+6. [Post-Installation Verification](#6-post-installation-verification)
 
 ---
 
 ## 1. Prerequisites
 
-Ensure you have the following installed before proceeding:
-- **Node.js (LTS)**: v20.x or higher.
-- **Docker Desktop**: With the **WSL2** backend enabled.
-- **Git**: For version control.
-- **VS Code** (Recommended): With the *Docker* and *ESLint* extensions.
+### 1.1. Core Software
+- **Node.js 20.x (LTS)**: [Download for Windows](https://nodejs.org/en/download)
+- **Git**: [Download for Windows](https://git-scm.com/download/win)
+- **PostgreSQL 15**: [Interactive Installer](https://www.postgresql.org/download/windows/)
+
+### 1.2. Process Manager (PM2)
+Essential for keeping the app running after terminal sessions end.
+```powershell
+npm install -g pm2
+```
 
 ---
 
-## 2. Initial Setup
+## 2. Database Setup (PostgreSQL 15)
 
-1.  **Clone the Repository**:
-    ```powershell
-    git clone [your-repo-url]
-    cd inventory-system
-    ```
+### 2.1. Native Installation
+1. Run the PostgreSQL installer.
+2. During setup, choose a "Superuser" password (default: `root` or `postgres`).
+3. Set the port to `5432`.
 
-2.  **Environment Configuration**:
-    Copy the example environment file to create your local configuration:
-    ```powershell
-    copy .env.example .env
-    ```
-    *Note: Update the values in `.env` if you are using custom ports or database credentials locally.*
-
-3.  **Install Dependencies**:
-    While we primarily run in Docker, installing local dependencies helps with IDE intellisense and linting:
-    ```powershell
-    cd backend; npm install; cd ..
-    cd frontend; npm install; cd ..
-    ```
+### 2.2. Initialize Database
+Open **pgAdmin 4** or use the `psql` command line:
+```sql
+CREATE DATABASE inventory_system;
+```
 
 ---
 
-## 3. Running the Application
+## 3. Native Windows Server Production Setup
 
-We use **Docker Compose** to manage the frontend, backend, and database simultaneously.
+This is the recommended path for servers without Docker.
 
-1.  **Start Services**:
-    ```powershell
-    docker-compose up --build
-    ```
-2.  **Access the App**:
-    - **Frontend**: [http://localhost](http://localhost) (or port 80).
-    - **Backend API**: [http://localhost:5000/api](http://localhost:5000/api).
+### 3.1. Repository Configuration
+```powershell
+git clone [your-repo-url]
+cd inventory-system
+```
 
----
+### 3.2. Environment Setup
+Copy the example file and update it with your server's credentials:
+```powershell
+copy .env.example backend\.env
+```
+Edit `backend\.env`:
+- `DB_HOST=localhost`
+- `DB_NAME=inventory_system`
+- `DB_PASSWORD=your_postgres_password`
+- `JWT_SECRET=your_secure_random_string`
+- `PORT=5000`
 
-## 4. Database Management
+### 3.3. Backend Deployment
+```powershell
+cd backend
+npm install --production
+npx knex migrate:latest
+pm2 start src/server.js --name "phoenix-backend"
+```
 
-We use **Knex.js** for database migrations and seeds.
-
-- **Run Migrations**:
-  The backend container runs migrations automatically on start. To run them manually from your host:
-  ```powershell
-  cd backend
-  npx knex migrate:latest
-  ```
-
-- **Seeding Data (Optional)**:
-  To populate the database with initial test data (admin users, sample products):
-  ```powershell
-  cd backend
-  npx knex seed:run
-  ```
-
----
-
-## 5. Testing & Quality Control
-
-Before pushing any code, ensure all tests pass:
-
-- **Backend Tests**: `cd backend; npm test`
-- **Frontend Linting**: `cd frontend; npm run lint`
-- **Docker Validation**: `docker-compose config`
+### 3.4. Frontend Deployment
+The frontend is built as static files and can be served using Node.js or a simple Nginx Windows service.
+```powershell
+cd ../frontend
+npm install
+npm run build
+```
 
 ---
 
-## 6. Troubleshooting (Windows/WSL2)
+## 4. Docker Setup (Development)
 
-- **Port Conflict (5000/5432)**: If you have a local PostgreSQL or another Node app running, change the ports in your `.env` and `docker-compose.yml`.
-- **WSL2 Memory Issues**: If Docker consumes too much RAM, create/edit `%USERPROFILE%\.wslconfig` and limit memory:
-  ```ini
-  [wsl2]
-  memory=4GB
-  ```
-- **File Watchers**: If Vite HMR (Hot Module Replacement) isn't working, ensure your project is stored within the WSL2 filesystem (e.g., `\\wsl$\Ubuntu\home\...`) for best performance.
+If you decide to enable Docker on your Windows Server later:
+```powershell
+docker-compose up -d --build
+```
+
+---
+
+## 5. Connecting via IP Address
+
+To allow other computers on your network to access the system:
+
+1.  **Open Windows Firewall**:
+    - Go to `Windows Defender Firewall with Advanced Security`.
+    - Create a new **Inbound Rule** for Port `5000` (Backend) and Port `80/5173` (Frontend).
+2.  **Access URL**:
+    - Users can access the app via: `http://[YOUR_SERVER_IP]:5173` (Dev) or `http://[YOUR_SERVER_IP]:80` (Standard).
+
+---
+
+## 6. Post-Installation Verification
+
+Run the following to ensure everything is operational:
+
+### 6.1. Logic Verification
+```powershell
+cd backend
+npm test
+```
+
+### 6.2. Process Monitoring
+```powershell
+pm2 list
+pm2 logs phoenix-backend
+```
+
+---
+> **Industry Tip**: For maximum performance on Windows Server 2019, ensure your `Power Plan` is set to `High Performance` in the Windows Control Panel to prevent the CPU from throttling during database operations.

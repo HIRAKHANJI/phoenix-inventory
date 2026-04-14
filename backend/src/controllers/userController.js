@@ -107,4 +107,30 @@ const deleteUser = async (req, res) => {
   }
 };
 
-module.exports = { getAllUsers, updateUser, deleteUser };
+// GRANT clearance
+const grantClearance = async (req, res) => {
+  const { id } = req.params;
+  const { company, hours } = req.body;
+
+  try {
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + parseInt(hours));
+
+    const userRes = await req.db.query('SELECT company_access FROM users WHERE id = $1', [id]);
+    if (userRes.rows.length === 0) return res.status(404).json({ message: 'User not found' });
+
+    let companyAccess = userRes.rows[0].company_access || {};
+    companyAccess[company] = { expires_at: expiresAt.toISOString() };
+
+    await req.db.query(
+      'UPDATE users SET company_access = $1 WHERE id = $2',
+      [JSON.stringify(companyAccess), id]
+    );
+
+    res.json({ message: `Clearance granted for ${company.toUpperCase()} for ${hours} hours.` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+module.exports = { getAllUsers, updateUser, deleteUser, grantClearance };

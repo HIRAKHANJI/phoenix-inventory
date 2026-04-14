@@ -8,5 +8,6 @@ const roleMiddleware = require('../middleware/roleMiddleware');
 router.get('/', authMiddleware, roleMiddleware(['admin', 'super_admin']), userController.getAllUsers);
 router.put('/:id', authMiddleware, roleMiddleware(['admin', 'super_admin']), userController.updateUser);
 router.delete('/:id', authMiddleware, roleMiddleware(['admin', 'super_admin']), userController.deleteUser);
+router.post('/:id/clearance', authMiddleware, roleMiddleware(['super_admin']), userController.grantClearance);
 
 module.exports = router;

@@ -1,121 +1,63 @@
-# 🏷️ Phoenix Inventory: Enterprise Logistics Intelligence
+# 🏷️ Phoenix Inventory: Enterprise Logistics Core
 
-**Phoenix Inventory** is a high-performance, secure, and multi-tenant inventory management system designed for organizational logistics. It features a robust **React/Vite** frontend and a **Node.js/Express** backend, optimized for reliability and auditable stock movements.
-
----
-
-## 🏗️ System Architecture
-
-The following diagram illustrates the high-level architecture of the Phoenix system, showing the interaction between the edge-layer Nginx, the core application, and the multi-tenant database cluster.
-
-```mermaid
-graph TD
-    subgraph "External Access"
-        User[Browser Client] -->|"HTTPS (80/443)"| Nginx[Nginx Reverse Proxy]
-    end
-
-    subgraph "Application Cluster"
-        Nginx -->|"Proxy Pass"| Backend[Node.js Express API]
-        Backend -->|"Auth Middleware"| Logic[Service Layer]
-        Logic -->|"Query Builder"| Knex[Knex Router]
-    end
-
-    subgraph "Multi-Tenant Data Storage"
-        Knex -->|"PHOENIX_DB"| DB1[(PostgreSQL: Phoenix)]
-        Knex -->|"INPACK_DB"| DB2[(PostgreSQL: Inpack)]
-    end
-
-    subgraph "Security Layer"
-        Backend -.->|"JWT Validation"| Auth[Auth Context]
-        Logic -.->|"Audit Log"| Trans[Transaction Logger]
-    end
-```
+**Phoenix Inventory** is a high-performance, auditable, and multi-deployment inventory management system. Optimized for reliability, it serves as the central intelligence hub for organizational stock control and asset tracking.
 
 ---
 
-## 🔄 Request Lifecycle: Stock Update Flow
+## 🚀 Deployment Strategy: "Deploy Anywhere"
 
-This sequence shows how a single stock adjustment request is processed through the layered architecture.
+This system is engineered for maximum flexibility, supporting both modern containerization and traditional high-availability server environments.
 
-```mermaid
-sequenceDiagram
-    participant U as User (Frontend)
-    participant C as Controller (Backend)
-    participant S as Service (Business Logic)
-    participant R as Repository (Data Access)
-    participant D as Database (PostgreSQL)
+### 🏢 Path A: Native Windows Server (Recommended for VPS)
+Optimized for **Windows Server 2019/2022** without Docker overhead.
+- **Process Manager**: PM2 (Process Manager 2)
+- **Database**: PostgreSQL 15 Service
+- **Access**: IP-based or Domain-mapped
+- [See SETUP.md for Native Instructions](./SETUP.md#3-native-windows-server-production-setup)
 
-    U->>C: POST /api/stock/update (with JWT)
-    C->>C: Validate Input (Express-Validator)
-    C->>S: updateStock(productId, delta)
-    S->>S: Check Inventory Policy
-    S->>R: updateProductQuantity(id, delta)
-    R->>D: BEGIN TRANSACTION
-    D->>D: Update records
-    D->>D: Log Inventory Transaction
-    D-->>R: COMMIT SUCCESS
-    R-->>S: Return updated data
-    S-->>C: Return 200 OK
-    C-->>U: Success Toast (UI)
-```
+### 🐳 Path B: Dockerized Logic
+Ideal for development environments and Linux-based infrastructure.
+- **Orchestration**: Docker Compose
+- **Environment**: WSL2 (Windows) / Native Docker (Linux)
+- [See SETUP.md for Docker Instructions](./SETUP.md#4-docker-setup-development)
 
 ---
 
-## 🚀 Rapid Deployment & Setup
+## 🛠️ Technology Stack & Standards
 
-### 1. Prerequisites
-- **Docker Desktop** (WSL2 Backend recommended for Windows).
-- **Node.js 20.x** (for local development/testing).
-
-### 2. Environment Configuration
-Copy the template and provide your secure credentials:
-```bash
-copy .env.example .env
-```
-
-### 3. One-Click Start
-```bash
-docker-compose up --build -d
-```
-*The system will automatically run all database migrations and start the UI at [http://localhost](http://localhost).*
+- **Frontend**: React 18, Vite, Tailwind CSS (High-Performance UI).
+- **Backend**: Node.js, Express, Knex.js (ACID-compliant transactions).
+- **Security**: JWT Stateless Sessions, Bcrypt Hashing, Helmet Security Headers.
+- **Database**: PostgreSQL 15 (Relational Data Integrity).
+- **Process Management**: PM2 Cluster Mode.
 
 ---
 
-## 🧪 CI/CD: Automated Verification Pipeline
+## 🏗️ Architecture & Flows
 
-We maintain a strict **GitHub Actions** pipeline to ensure all features are verified before release.
+The system utilizes a **Layered Architecture** (Controller -> Service -> Repository) to ensure business logic is isolated from delivery mechanisms.
 
-```mermaid
-graph LR
-    Push[Git Push] --> Lint[🛡️ Lint & Format]
-    Lint --> Backend[🧠 Backend Logic & DB]
-    Lint --> Frontend[🏗️ Frontend Build]
-    Backend --> Audit[🐳 Docker Health Audit]
-    Frontend --> Audit
-    Audit --> Deploy[🚀 Production Ready]
-    
-    style Deploy fill:#4CAF50,stroke:#388E3C,color:#fff
-```
-
-### Verified Features in CI:
-- **Deduplication Logic**: Ensures no duplicate SKUs are created.
-- **Cascading Deletions**: Verifies "non-stick" deletion (no orphaned records).
-- **Migration Integrity**: Checks that all DB changes are forward-compatible.
+- **[ARCHITECTURE.md](./ARCHITECTURE.md)**: Explore the detailed system diagrams, ERD schema, and performance optimizations.
+- **[TESTING_SEQUENCE.md](./TESTING_SEQUENCE.md)**: Review our comprehensive manual and automated verification protocols.
 
 ---
 
-## 🔐 Multi-Tenant Isolation (Phoenix vs Inpack)
-Phoenix Inventory supports a dual-tenant architecture for organizational sub-entities:
-- **Isolated Databases**: Complete data segregation between `phoenix` and `inpack` tenants.
-- **Role-Based Access**: Granular control for `super_admin`, `admin`, and `user` roles across all sub-companies.
+## 🧪 Verified Stability
+
+Every release undergoes a rigorous testing sequence to ensure zero-regressions:
+1.  **Functional Logic**: Verified via Jest/Supertest.
+2.  **Deduplication**: Guaranteed SKU uniqueness at the DB constraint level.
+3.  **Cascading Operations**: Clean deletion of related records (Non-stick logic).
+4.  **Schema Consistency**: Automated Knex migrations.
 
 ---
 
-## 🛠️ Project Sharing & Contribution
-To share this project or set it up for a new team:
-1.  **Reference [SETUP.md](file:///d:/inventory-system/SETUP.md)** for detailed local development onboarding.
-2.  **Refer to [ARCHITECTURE.md](file:///d:/inventory-system/ARCHITECTURE.md)** for deep-dive technical specs.
-3.  **Check [TESTING_SEQUENCE.md](file:///d:/inventory-system/TESTING_SEQUENCE.md)** for the manual validation protocol.
+## 🔧 Getting Started
+
+1.  **Prerequisites**: Install Node.js 20+ and PostgreSQL 15.
+2.  **Clone**: `git clone [repo-url]`
+3.  **Setup**: Follow the **[SETUP.md](./SETUP.md)** instructions for your specific OS.
+4.  **Verify**: Run `npm test` in the `/backend` to check logic integrity.
 
 ---
-Verified by Antigravity
+Verified & Documented for Production Release v1.0.0

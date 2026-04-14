@@ -142,31 +142,40 @@ const AdminUsers = () => {
                     </span>
                   </td>
                   <td style={{ padding: "1.25rem", textAlign: "right", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                    {currentUser.id !== u.id && (
+                    {String(currentUser.id) !== String(u.id) && (
                       <div className="flex justify-end gap-1">
-                        <button className="btn-sm" onClick={() => setSelectedUser(u)} style={{ backgroundColor: "var(--primary)", borderColor: "transparent", color: "white", fontSize: "0.65rem", fontWeight: 800 }}>CLEARANCE</button>
-                        <select 
-                          className="btn-sm" 
-                          value={u.role} 
-                          onChange={(e) => handleRoleUpdate(u.id, e.target.value)}
-                          style={{ fontSize: "0.65rem", fontWeight: 800, backgroundColor: "#1e293b", color: "white", border: "1px solid rgba(255,255,255,0.1)" }}
-                        >
-                          <option value="user" style={{ backgroundColor: "#1e293b" }}>User</option>
-                          <option value="admin" style={{ backgroundColor: "#1e293b" }}>Admin</option>
-                          {currentUser.role === 'super_admin' && <option value="super_admin" style={{ backgroundColor: "#1e293b" }}>Super Admin</option>}
-                        </select>
-                        <button 
-                          className="btn-sm" 
-                          onClick={() => handleStatusUpdate(u.id, u.status === 'active' ? 'suspended' : 'active')}
-                          style={{ 
-                            backgroundColor: u.status === 'active' ? "rgba(225, 29, 72, 0.1)" : "rgba(16, 185, 129, 0.1)",
-                            color: u.status === 'active' ? "var(--accent)" : "var(--success)",
-                            fontWeight: 800,
-                            fontSize: "0.65rem"
-                          }}
-                        >
-                          {u.status === 'active' ? "SUSPEND" : "RESTORE"}
-                        </button>
+                        {/* ONLY Super Admin can grant clearance */}
+                        {currentUser.role === 'super_admin' && (
+                          <button className="btn-sm" onClick={() => setSelectedUser(u)} style={{ backgroundColor: "var(--primary)", borderColor: "transparent", color: "white", fontSize: "0.65rem", fontWeight: 800 }}>CLEARANCE</button>
+                        )}
+
+                        {/* Control Actions: Super Admin manages everyone, Admin manages Users only */}
+                        {(currentUser.role === 'super_admin' || (currentUser.role === 'admin' && u.role === 'user')) && (
+                          <>
+                            <select 
+                              className="btn-sm" 
+                              value={u.role} 
+                              onChange={(e) => handleRoleUpdate(u.id, e.target.value)}
+                              style={{ fontSize: "0.65rem", fontWeight: 800, backgroundColor: "#1e293b", color: "white", border: "1px solid rgba(255,255,255,0.1)" }}
+                            >
+                              <option value="user" style={{ backgroundColor: "#1e293b" }}>User</option>
+                              <option value="admin" style={{ backgroundColor: "#1e293b" }}>Admin</option>
+                              {currentUser.role === 'super_admin' && <option value="super_admin" style={{ backgroundColor: "#1e293b" }}>Super Admin</option>}
+                            </select>
+                            <button 
+                              className="btn-sm" 
+                              onClick={() => handleStatusUpdate(u.id, u.status === 'active' ? 'suspended' : 'active')}
+                              style={{ 
+                                backgroundColor: u.status === 'active' ? "rgba(225, 29, 72, 0.1)" : "rgba(16, 185, 129, 0.1)",
+                                color: u.status === 'active' ? "var(--accent)" : "var(--success)",
+                                fontWeight: 800,
+                                fontSize: "0.65rem"
+                              }}
+                            >
+                              {u.status === 'active' ? "SUSPEND" : "RESTORE"}
+                            </button>
+                          </>
+                        )}
                       </div>
                     )}
                   </td>

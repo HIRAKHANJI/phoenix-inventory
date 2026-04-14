@@ -1,70 +1,61 @@
-# Phoenix Inventory: GitHub Testing Sequence
+# Phoenix Inventory: Verification & Testing Sequence
 
-This document outlines the systematic verification process for all major features, backend security, and database integrity.
-
----
-
-## 1. Testing Protocol
-
-All features must pass the following sequence before a production `git push` or merge.
-
-### 1.1. Major Feature Verification
-- **User Authentication**:
-    - [ ] Sign up with valid credentials.
-    - [ ] Sign up with duplicate email (should fail).
-    - [ ] Login with correct credentials (returns JWT).
-    - [ ] Access protected routes without JWT (should fail).
-- **Inventory CRUD**:
-    - [ ] Create a new product with unique SKU.
-    - [ ] Update product details (name/SKU).
-    - [ ] Delete product (ensure cascading delete in `stock`).
-- **Stock Movement**:
-    - [ ] Add stock to a specific warehouse/shelf.
-    - [ ] Subtract stock (ensure it doesn't go below zero if configured).
-    - [ ] Verify `inventory_transactions` record is created for each action.
-
-### 1.2. Backend & DB Integrity (Security & Deduplication)
-- **Data Validation**:
-    - [ ] Negative quantity input (should be blocked via Express-validator).
-    - [ ] Malformed JSON input to API (should return 400 Bad Request).
-- **Deduplication Check**:
-    - [ ] Attempt to create a SKU that already exists (should fail with 409 Conflict).
-- **"Non-Stick" Deletion**:
-    - [ ] Delete a product and verify that all related entries in the `stock` table are also deleted (Cascading Integrity).
-    - [ ] Ensure orphan records are not left in the database.
+This document outlines the systematic protocols for ensuring system stability, data integrity, and production readiness in both Docker and Native Windows environments.
 
 ---
 
-## 2. GitHub Testing Log
+## 1. Automated Testing Suite
 
-This log is used to record the results of manual and automated verification sessions.
+We use **Jest** and **Supertest** for backend logic verification.
+
+### 1.1. Core Test Components
+- **Auth Integrity**: Verifies JWT issuance, password hashing, and role-based validation.
+- **Stock Movement**: Checks if `IN` and `OUT` transactions accurately update inventory.
+- **Deduplication**: Ensures SKU constraints work across both `stock` and `inventory` tables.
+- **Cascading Integrity**: Confirms that deleting a product removes all associated warehouse records.
+
+### 1.2. Running the Suite
+```powershell
+cd backend
+npm test
+```
+
+---
+
+## 2. Production Readiness Checklist (Windows Server 2019)
+
+Use this checklist before going live on your server.
+
+| Step | Action | Status |
+| :--- | :--- | :--- |
+| **1. Database** | PostgreSQL 15 installed and `inventory_system` created. | [ ] |
+| **2. Config** | `.env` file populated with secure JWT and DB credentials. | [ ] |
+| **3. Migrations** | `npx knex migrate:latest` executed successfully. | [ ] |
+| **4. Process** | PM2 service active and `phoenix-backend` running. | [ ] |
+| **5. Firewall** | Inbound rules for Port 5000 and 5173/80 enabled. | [ ] |
+| **6. Build** | `npm run build` completed for the frontend. | [ ] |
+
+---
+
+## 3. GitHub & Local Testing Log
 
 | Date | Verification Step | Tester | Result | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| 2026-04-02 | Initial Deployment Architecture | Antigravity | [PASS] | Nginx/Express/Postgres link active. |
-| 2026-04-02 | Auth Lifecycle (Sign-up/Login) | Antigravity | [PASS] | JWT issued correctly. |
-| 2026-04-02 | Stock Transaction Logging | Antigravity | [PASS] | `inventory_transactions` capturing data. |
+| 2026-04-02 | Docker Architecture | Antigravity | [PASS] | Inter-container link verified. |
+| 2026-04-14 | Native Windows Overhaul | Antigravity | [PASS] | Documentation & Native Script added. |
+| 2026-04-14 | Auth Integration Tests | Antigravity | [PASS] | JWT/RBAC logic verified. |
 | ... | ... | ... | ... | ... |
 
 ---
 
-## 3. GitHub Actions CI/CD Pipeline
+## 4. Manual UI Verification Protocol
 
-The project uses GitHub Actions for automated code quality and build verification.
+Perform these steps on the staging server before final release:
 
-### 3.1. Workflow: `.github/workflows/ci.yml`
-- **Linting**: Verifies code style consistency using ESLint.
-- **Backend Tests**: Runs `npm test` (Jest) to verify API endpoints and business logic.
-- **Frontend Build**: Verifies that the React/Vite app builds successfully.
-- **Docker Audit**: Runs a configuration check on `docker-compose.yml` to ensure valid container definitions.
+1.  **Auth Flow**: Register a new admin -> Logout -> Login -> Verify Sidebar visible.
+2.  **Product Flow**: Register a new SKU -> Check if "Registered Asset" shows in catalog.
+3.  **Stock Flow**: Select Warehouse -> Add 100 units -> Check if Transaction Log shows "IN: 100".
+4.  **Security Flow**: Attempt to access `/api/stock` without a token (should return 401).
 
-### 3.2. How to Run Locally
-Ensure you have Docker Desktop and Node.js installed on your Windows machine:
-```powershell
-# Run backend tests
-cd backend
-npm test
-
-# Verify Docker config
-docker-compose config
-```
+---
+*System Verified for Native Deployment v1.0.0*
