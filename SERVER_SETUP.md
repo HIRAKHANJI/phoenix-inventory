@@ -481,11 +481,9 @@ RDP (port 3389) is restricted to Tailscale network only (configured in Step 6.5)
 
 ---
 
-### Step 16: GitHub Actions Auto-Deploy — IN PROGRESS
+### Step 16: GitHub Actions Auto-Deploy — DONE
 
 Because GitHub Actions runners are cloud-based (Azure) and the server is only reachable via Tailscale, the deploy workflow joins the Tailscale network temporarily using an auth key, then SSHs into the server as the `deploy` user.
-
-**Phases:**
 
 **Phase 1: Retrieve deploy user's SSH private key — DONE**
 ```powershell
@@ -493,10 +491,17 @@ type C:\Users\deploy\.ssh\deploy_key
 ```
 Private key copied, starts with `-----BEGIN OPENSSH PRIVATE KEY-----`.
 
+**Important:** When pasting the key into GitHub Secrets, copy from Notepad (not PowerShell terminal) to avoid invisible character issues. Open the key in Notepad first:
+```powershell
+notepad C:\Users\deploy\.ssh\deploy_key
+```
+Then Ctrl+A, Ctrl+C, paste into GitHub.
+
 **Phase 2: Generate Tailscale auth key — DONE**
 - Went to `https://login.tailscale.com/admin/settings/keys`
-- Generated with: Reusable ON, Ephemeral ON, 90-day expiration, no tags
+- Generated with: Reusable ON, Ephemeral ON, 90-day expiration, Tags OFF
 - Key format: `tskey-auth-...`
+- **Note:** This key expires after 90 days. Regenerate and update the `TS_AUTHKEY` GitHub Secret before expiry.
 
 **Phase 3: Add GitHub Secrets — DONE**
 At `https://github.com/HIRAKHANJI/phoenix-inventory/settings/secrets/actions`:
@@ -513,16 +518,20 @@ At `https://github.com/HIRAKHANJI/phoenix-inventory/settings/secrets/actions`:
 Created `.github/workflows/deploy.yml`. The workflow:
 1. Triggers on every push to `main`
 2. Checks out repo
-3. Connects to Tailscale using `TS_AUTHKEY` (ephemeral node, auto-removes)
-4. Waits 5s for Tailscale to settle
+3. Connects to Tailscale using `TS_AUTHKEY` (ephemeral node, auto-removes after run)
+4. Waits 5s for Tailscale network to settle
 5. SSHs to `deploy@100.119.90.5` using `SERVER_SSH_KEY`
 6. Runs `powershell -ExecutionPolicy Bypass -File C:\phoenix-inventory\deploy.ps1`
 7. `deploy.ps1` pulls code, installs deps, runs migrations, builds frontend, restarts services
 8. `concurrency` group ensures only one deploy runs at a time
 
-**Phase 5: Test first deploy — TO DO**
+**Phase 5: First deploy test — DONE**
 
-Make any small change, commit, push to `main`. Watch `https://github.com/HIRAKHANJI/phoenix-inventory/actions` for the run.
+- Merged PR #3 (`claude/git-author-setup-IoSrq`) into `main`
+- Initial run failed: `ssh: no key found` — caused by invisible characters from RDP clipboard copy
+- Fixed by copying key from Notepad instead of PowerShell terminal
+- Second run succeeded: **Deploy to Phoenix Server — 1m 19s**
+- Verified on server: `git log -1` shows merged commit, both services running
 
 ---
 
@@ -605,16 +614,222 @@ Copy-Item C:\phoenix-inventory\.env.example C:\phoenix-inventory\backend\.env
 
 ---
 
-## Pending Items
+## Current Server Capabilities (as of 2026-04-17)
 
-1. **Static IP** — Set when server moves to permanent router location. Update `SERVER_HOST` GitHub Secret if switching from Tailscale IP to LAN IP.
-2. **IMPACK/INPACK naming refactor** — Code uses `IMPACK_DB` env var but database is `inpack_db`. Code refactor planned to standardize to `INPACK` everywhere.
-3. **knexfile.js production config** — Currently uses `DATABASE_URL` which isn't set. Either set `DATABASE_URL` in `.env` or update knexfile.js to use the individual DB_* vars in production too.
-4. **HTTPS/SSL** — Requires domain name + Let's Encrypt cert. Currently HTTP only.
-5. **CLAUDE.md** — Proposed but not yet committed to repo.
-6. **Node.js upgrade to 20.19+** — Current 20.18.1 works but warns during frontend build.
-7. **Real tests** — Both backend and frontend have only dummy sanity tests. CI passes but validates nothing.
-8. **First deploy test** — Push to `main` and verify the auto-deploy workflow runs end-to-end.
+- App accessible via Tailscale IP at `http://100.119.90.5` (devices on Tailscale network only)
+- App accessible via LAN IP at `http://192.168.x.x` (devices on same local network as server)
+- NOT accessible from the public internet (no domain, no port forwarding, no HTTPS)
+- Auto-deploy on every push to `main` via GitHub Actions (~1-3 min deploy time)
+- All services auto-start on boot, no physical login required
+- RDP restricted to Tailscale network only
+- Physical access blocked by auto-lock screen
+
+---
+
+## Future Setup Instructions
+
+### Priority 1: Static IP (when server moves to permanent router)
+
+**When:** Before placing the server in the server rack with its permanent network connection.
+
+**Why:** DHCP can change the server's LAN IP after a reboot. Static IP ensures the server is always reachable at the same LAN address.
+
+**Steps:**
+
+1. Find the new router's subnet info:
+   - Log into the router admin page (usually `192.168.1.1` or `192.168.0.1` in a browser)
+   - Note the subnet range (e.g., `192.168.1.x`)
+   - Pick an IP outside the DHCP range (e.g., `192.168.1.100`) — check the router's DHCP settings to see the range
+
+2. On the server:
+   - Server Manager > Local Server > Ethernet > click the network adapter link
+   - Right-click adapter > Properties > Internet Protocol Version 4 (TCP/IPv4) > Properties
+   - Select **"Use the following IP address"**
+   - **IP address**: `192.168.1.100` (or your chosen address)
+   - **Subnet mask**: `255.255.255.0`
+   - **Default gateway**: `192.168.1.1` (your router's IP)
+   - Select **"Use the following DNS server addresses"**
+   - **Preferred DNS**: `8.8.8.8`
+   - **Alternate DNS**: `8.8.4.4`
+   - Click OK, close
+
+3. Verify internet still works:
+   ```powershell
+   Test-NetConnection -ComputerName google.com -Port 443
+   ```
+
+4. The `SERVER_HOST` GitHub Secret uses the Tailscale IP (`100.119.90.5`) — this does NOT change when you set a static LAN IP, so no update needed there.
+
+5. For LAN users who accessed the app via the old DHCP IP, share the new static IP.
+
+---
+
+### Priority 2: HTTPS/SSL with Domain via Cloudflare
+
+**When:** When the server has its permanent internet connection and static IP, and you want the app accessible from the public internet.
+
+**Why:** HTTPS encrypts traffic, a domain name gives a professional URL, and Cloudflare provides free SSL, DDoS protection, and DNS management.
+
+**What you need:**
+- A domain name (~$10/year from Cloudflare Registrar, Namecheap, or Porkbun)
+- A Cloudflare account (free)
+- Your public IP address (run `curl ifconfig.me` from the server, or Google "what is my IP")
+
+**Steps:**
+
+1. **Buy a domain** (e.g., `phoenixinventory.com` or `phoenix-systems.com`):
+   - Go to `https://www.cloudflare.com/products/registrar/`
+   - Search for an available domain
+   - Purchase it (~$10/year)
+
+2. **Add the domain to Cloudflare** (if bought elsewhere):
+   - Log into Cloudflare dashboard
+   - Click "Add a site" → enter your domain
+   - Select Free plan
+   - Update nameservers at your registrar to the ones Cloudflare provides
+
+3. **Create a DNS A record**:
+   - In Cloudflare DNS settings for your domain
+   - Type: **A**
+   - Name: `@` (root domain) or `inventory` (for a subdomain like `inventory.yourdomain.com`)
+   - Content: your **public IP address**
+   - Proxy status: **Proxied** (orange cloud ON) — this gives you free SSL
+
+4. **Set up port forwarding on your router**:
+   - Log into router admin
+   - Forward **port 80** (HTTP) → server's static LAN IP (e.g., `192.168.1.100`) port 80
+   - Forward **port 443** (HTTPS) → server's static LAN IP port 443
+   - Cloudflare handles SSL termination, so Nginx still serves on port 80
+
+5. **Configure Cloudflare SSL**:
+   - In Cloudflare dashboard > SSL/TLS
+   - Set mode to **"Flexible"** (Cloudflare handles HTTPS to visitors, talks HTTP to your server)
+   - This means you do NOT need to install an SSL certificate on the server
+
+6. **Update Nginx config** (on the server):
+   ```powershell
+   notepad C:\nginx\conf\nginx.conf
+   ```
+   Change `server_name localhost;` to `server_name yourdomain.com;` (your actual domain)
+   
+   Then restart Nginx:
+   ```powershell
+   nssm restart PhoenixNginx
+   ```
+
+7. **Update frontend API URL**:
+   - The frontend's `axios.js` has `http://localhost:5000/api` hardcoded
+   - With Nginx proxying `/api` to the backend, the frontend should use relative URLs
+   - This may require a code change: `baseURL` should be `/api` instead of `http://localhost:5000/api`
+
+8. **Test**: Open `https://yourdomain.com` in a browser from any device, anywhere
+
+**Result:** App accessible at `https://yourdomain.com` from any device in the world, with free SSL from Cloudflare.
+
+---
+
+### Priority 3: Real Test Coverage
+
+**When:** Before relying on CI status checks to gate PRs.
+
+**Why:** Both backend and frontend currently have only dummy tests (`expect(true).toBe(true)`). CI passes but catches nothing. Critical business logic (stock movements, auth, cascading deletes) has zero automated validation.
+
+**What needs testing:**
+
+**Backend (Jest + Supertest):**
+- Auth endpoints: register, login, duplicate email rejection, JWT validation
+- Product CRUD: create, read, update, delete, cascading stock deletion
+- Stock operations: inbound, outbound, prevent negative stock, deduplication
+- User management: role changes, status changes, permission enforcement
+- Multi-tenant isolation: ensure Phoenix data doesn't leak to Inpack
+
+**Frontend (Vitest + React Testing Library):**
+- Login/Register forms: validation, submission, error handling
+- Admin pages: product list rendering, stock table rendering
+- API calls: mock axios responses, verify correct endpoints called
+- Route protection: unauthenticated redirect, role-based access
+
+**How to start:**
+1. Create backend test setup with test database
+2. Write tests for auth endpoints first (highest risk)
+3. Write tests for stock operations (most complex)
+4. Enable the CI "Require status checks to pass" branch protection rule once tests are meaningful
+
+---
+
+### Priority 4: IMPACK → INPACK Code Refactor
+
+> **NOTE:** Remove this section from SERVER_SETUP.md once the refactor is completed, as it is a codebase task not a server setup task.
+
+**When:** Next available code cleanup session.
+
+**Why:** The company is called "Inpack" but the codebase inconsistently uses "impack" in variable names, env vars, and config. The database on the server is already named `inpack_db` (correct). The code needs to match.
+
+**What needs changing:**
+- `backend/src/config/dbManager.js`: `impackPool` → `inpackPool`, `IMPACK_DB` → `INPACK_DB`
+- `backend/.env.example`: `IMPACK_DB` → `INPACK_DB`
+- `backend/src/config/env.js`: any `impack` references
+- `backend/scripts/seed_impack.js`: rename file and internal references
+- `backend/scripts/schema_clone.js`: `impack` references
+- Frontend display text: verify "Inpack" is used consistently (not "Impack")
+- `ARCHITECTURE.md`: `INPACK_DB` reference in Mermaid diagram
+- Server `.env` file: update `IMPACK_DB=inpack_db` to `INPACK_DB=inpack_db` after code change
+
+**After refactor:** Update the server's `.env` file:
+```powershell
+notepad C:\phoenix-inventory\backend\.env
+```
+Change `IMPACK_DB=inpack_db` to `INPACK_DB=inpack_db`. The deploy script will pull the code changes, but the `.env` must be manually updated since it's not in the repo.
+
+---
+
+### Priority 5: CLAUDE.md
+
+> **NOTE:** Remove this section from SERVER_SETUP.md once CLAUDE.md is committed to the repo, as it is a project governance file not a server setup task.
+
+**When:** Next session focused on codebase maintenance.
+
+**Why:** CLAUDE.md provides rules and context for AI assistants (Claude Code) and contributors working on the repo. It documents the architecture, known issues, coding standards, and priority order for improvements.
+
+**What it contains (proposed):**
+- Project overview and tech stack
+- Full directory structure with notes on dead code (unused services/repositories layers)
+- Multi-tenancy architecture explanation
+- Auth flow documentation
+- Database access pattern (controllers use raw SQL, bypass services layer)
+- All 20+ known issues prioritized (schema mismatches, missing deps, security gaps)
+- Complete API endpoint reference including broken frontend calls
+- Database schema: what exists vs what's missing from migrations
+- Rules for AI assistants and contributors (git workflow, code standards, checklists)
+- Environment variables reference
+
+**Status:** Full content drafted and reviewed. Ready to commit when approved.
+
+---
+
+## Maintenance Notes
+
+### Tailscale Auth Key Expiry
+The `TS_AUTHKEY` GitHub Secret expires after **90 days** from creation. Before it expires:
+1. Go to `https://login.tailscale.com/admin/settings/keys`
+2. Generate a new auth key (Reusable ON, Ephemeral ON, 90 days, Tags OFF)
+3. Update the `TS_AUTHKEY` secret at `https://github.com/HIRAKHANJI/phoenix-inventory/settings/secrets/actions`
+
+### Node.js Upgrade (when needed)
+Current: v20.18.1. Some dependencies warn about needing 20.19+. When builds start failing:
+```powershell
+Invoke-WebRequest -UseBasicParsing "https://nodejs.org/dist/v20.19.0/node-v20.19.0-x64.msi" -OutFile node-upgrade.msi
+msiexec /i node-upgrade.msi /qn
+```
+Close and reopen PowerShell, verify with `node --version`, then restart the backend service:
+```powershell
+nssm restart PhoenixBackend
+```
+
+### knexfile.js Production Config
+Migrations currently run with `--env development` because the production config requires `DATABASE_URL` which isn't set. To fix permanently, either:
+- Add `DATABASE_URL=postgresql://postgres:<password>@localhost:5432/inventory_system` to `.env`
+- Or update `knexfile.js` production section to use individual `DB_*` vars like development does
 
 ---
 
