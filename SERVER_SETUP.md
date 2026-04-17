@@ -481,27 +481,140 @@ RDP (port 3389) is restricted to Tailscale network only (configured in Step 6.5)
 
 ---
 
-### Step 16: GitHub Actions Auto-Deploy — TO DO
+### Step 16: GitHub Actions Auto-Deploy — IN PROGRESS
 
-**GitHub Secrets needed** (`Settings > Secrets and variables > Actions`):
+Because GitHub Actions runners are cloud-based (Azure) and the server is only reachable via Tailscale, the deploy workflow joins the Tailscale network temporarily using an auth key, then SSHs into the server as the `deploy` user.
+
+**Phases:**
+
+**Phase 1: Retrieve deploy user's SSH private key — DONE**
+```powershell
+type C:\Users\deploy\.ssh\deploy_key
+```
+Private key copied, starts with `-----BEGIN OPENSSH PRIVATE KEY-----`.
+
+**Phase 2: Generate Tailscale auth key — DONE**
+- Went to `https://login.tailscale.com/admin/settings/keys`
+- Generated with: Reusable ON, Ephemeral ON, 90-day expiration, no tags
+- Key format: `tskey-auth-...`
+
+**Phase 3: Add GitHub Secrets — DONE**
+At `https://github.com/HIRAKHANJI/phoenix-inventory/settings/secrets/actions`:
 
 | Secret | Value |
 |--------|-------|
 | `SERVER_HOST` | `100.119.90.5` |
 | `SERVER_USER` | `deploy` |
-| `SERVER_SSH_KEY` | Deploy user's private key (from Step 9) |
+| `SERVER_SSH_KEY` | Full private key (BEGIN/END lines included) |
+| `TS_AUTHKEY` | Tailscale auth key from Phase 2 |
 
-A `.github/workflows/deploy.yml` will be created to SSH into the server and run `deploy.ps1` on every push to `main`.
+**Phase 4: Deploy workflow file — DONE**
+
+Created `.github/workflows/deploy.yml`. The workflow:
+1. Triggers on every push to `main`
+2. Checks out repo
+3. Connects to Tailscale using `TS_AUTHKEY` (ephemeral node, auto-removes)
+4. Waits 5s for Tailscale to settle
+5. SSHs to `deploy@100.119.90.5` using `SERVER_SSH_KEY`
+6. Runs `powershell -ExecutionPolicy Bypass -File C:\phoenix-inventory\deploy.ps1`
+7. `deploy.ps1` pulls code, installs deps, runs migrations, builds frontend, restarts services
+8. `concurrency` group ensures only one deploy runs at a time
+
+**Phase 5: Test first deploy — TO DO**
+
+Make any small change, commit, push to `main`. Watch `https://github.com/HIRAKHANJI/phoenix-inventory/actions` for the run.
+
+---
+
+## Issues Encountered During Setup
+
+### Docker Desktop couldn't install (Step 3)
+**Problem:** Docker Desktop installer said Windows Server 2019 is too old. Docker Engine installed but could only run Windows containers, not Linux.
+
+**Solution:** Abandoned Docker entirely. Went with native installs: Node.js + PostgreSQL + Nginx directly on Windows, using NSSM to manage them as Windows services.
+
+### Hyper-V install triggered multiple reboots (Step 3)
+**Problem:** After each restart, the HP ProLiant G9 boot menu appeared asking to select boot device.
+
+**Solution:** Select **RAID 1 (931.48 GiB)** at each boot menu. Can be disabled in BIOS later to boot directly to Windows.
+
+### `winget` package manager not pre-installed on Server 2019 (Step 7)
+**Problem:** Couldn't use `winget install` for Git.
+
+**Solution:** Downloaded Git installer directly via `Invoke-WebRequest` and installed with `/VERYSILENT`.
+
+### `ssh-keygen -N ""` flag not accepted by Windows OpenSSH 7.7 (Step 9)
+**Problem:** Windows version of `ssh-keygen` rejected the empty-quote passphrase argument.
+
+**Solution:** Run `ssh-keygen -t ed25519 -f <path>` without `-N`, then hit Enter twice interactively when prompted for passphrase.
+
+### SSH key auth failed for deploy user (Step 9)
+**Problem:** The deploy user kept being asked for a password despite a correct key file being in `~/.ssh/authorized_keys`.
+
+**Solution:** On Windows, administrator accounts don't use `~/.ssh/authorized_keys` — they use `C:\ProgramData\ssh\administrators_authorized_keys` instead. Needed to:
+1. Copy the public key there (not append)
+2. Set strict permissions: `icacls C:\ProgramData\ssh\administrators_authorized_keys /inheritance:r /grant "SYSTEM:F" /grant "Administrators:F"`
+3. Uncomment `PubkeyAuthentication yes` in `C:\ProgramData\ssh\sshd_config`
+4. Restart sshd service
+
+### Deploy user password rejection (Step 8)
+**Problem:** `net user deploy <password>` kept failing with "does not meet password policy requirements."
+
+**Solution:** Password needed uppercase + lowercase + number + special character. `Ph03n1x_5VR!` worked.
+
+### Knex migrations failed on production env (Step 10)
+**Problem:** `npx knex migrate:latest` errored with "Unable to acquire a connection."
+
+**Cause:** `knexfile.js` production config uses `process.env.DATABASE_URL` which wasn't set. The separate `DB_HOST`, `DB_USER`, etc. env vars are only used in the development config.
+
+**Solution:** Ran migrations using `--env development` flag which uses the individual DB_* env vars from `.env`:
+```powershell
+npx knex migrate:latest --env development
+npx knex seed:run --env development
+```
+
+### `.env.example` in wrong location (Step 10)
+**Problem:** `Copy-Item .env.example .env` inside `backend/` folder failed — file didn't exist there.
+
+**Solution:** `.env.example` is at the repo root, not in `backend/`. Copied from the correct location:
+```powershell
+Copy-Item C:\phoenix-inventory\.env.example C:\phoenix-inventory\backend\.env
+```
+
+### Node.js version warning during frontend build (Step 10)
+**Problem:** `npm run build` warned that Vite requires Node.js 20.19+ (installed was 20.18.1).
+
+**Solution:** Build still succeeded despite the warning. Kept Node.js 20.18.1 for now — upgrade to 20.19+ later if dependency issues arise.
+
+### Nginx run from wrong directory (Step 11)
+**Problem:** Running `.\nginx.exe -t` from `C:\phoenix-inventory\frontend` caused nginx to look for config in the wrong place.
+
+**Solution:** Always `cd C:\nginx` before running nginx commands. NSSM service config handles this automatically via `AppDirectory`.
+
+### RDP failed to Microsoft-account-linked Windows 11 PC (personal PC setup)
+**Problem:** Couldn't RDP to personal PC using the Microsoft account email/password — kept failing.
+
+**Cause:** Windows 11 with Microsoft account uses Windows Hello PIN by default. RDP requires the Microsoft account password to be cached locally.
+
+**Solution:** On personal PC, locked screen (Win+L), clicked "Sign-in options", selected key icon, typed full Microsoft account password (not PIN). This cached it locally. Then RDP worked with email + password.
+
+### Auto-login + security tradeoffs
+**Problem:** Without auto-login, reboots would lock the server remotely (Tailscale still works but RDP session gets stuck).
+
+**Solution:** Enabled auto-login (registry), but paired with immediate auto-lock (scheduled task) so anyone physically at the server sees a locked screen. Also restricted RDP to Tailscale network only — outside devices can't even attempt to connect.
 
 ---
 
 ## Pending Items
 
-1. **Static IP** — Set when server moves to permanent router location
-2. **IMPACK/INPACK naming refactor** — Code uses `IMPACK_DB` env var but database is `inpack_db`
-3. **knexfile.js production config** — Currently uses `DATABASE_URL` which isn't set; migrations run via `--env development`
-4. **HTTPS/SSL** — Requires domain name + certificate (future)
-5. **CLAUDE.md** — Project guidelines file for AI assistants and contributors (proposed, not yet created)
+1. **Static IP** — Set when server moves to permanent router location. Update `SERVER_HOST` GitHub Secret if switching from Tailscale IP to LAN IP.
+2. **IMPACK/INPACK naming refactor** — Code uses `IMPACK_DB` env var but database is `inpack_db`. Code refactor planned to standardize to `INPACK` everywhere.
+3. **knexfile.js production config** — Currently uses `DATABASE_URL` which isn't set. Either set `DATABASE_URL` in `.env` or update knexfile.js to use the individual DB_* vars in production too.
+4. **HTTPS/SSL** — Requires domain name + Let's Encrypt cert. Currently HTTP only.
+5. **CLAUDE.md** — Proposed but not yet committed to repo.
+6. **Node.js upgrade to 20.19+** — Current 20.18.1 works but warns during frontend build.
+7. **Real tests** — Both backend and frontend have only dummy sanity tests. CI passes but validates nothing.
+8. **First deploy test** — Push to `main` and verify the auto-deploy workflow runs end-to-end.
 
 ---
 
