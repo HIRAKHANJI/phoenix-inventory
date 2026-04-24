@@ -13,6 +13,8 @@ const Sidebar = () => {
         { path: "/admin/products", label: "Catalog", icon: "📦" },
         { path: "/admin/stock", label: "Inventory", icon: "🔄" },
         { path: "/admin/stock/updates", label: "Updates", icon: "📥" },
+        { path: "/admin/inventory-items", label: "Inv. Items", icon: "🗂️" },
+        { path: "/admin/manufacturing", label: "Manufacturing", icon: "🏭" },
         { path: "/admin/users", label: "Users", icon: "👥" },
     ];
 

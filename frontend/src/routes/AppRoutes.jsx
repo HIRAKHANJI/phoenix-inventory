@@ -7,6 +7,9 @@ import UserPanel from "../pages/UserPanel";
 import UpdateStock from "../pages/UpdateStock";
 import Register from "../pages/Register";
 import AdminUsers from "../pages/AdminUsers";
+import InventoryItems from "../pages/InventoryItems";
+import ManufacturingList from "../pages/ManufacturingList";
+import ManufacturingDetail from "../pages/ManufacturingDetail";
 
 import { useAuth } from "../context/AuthContext";
 
@@ -70,6 +73,24 @@ const AppRoutes = () => {
         <Route path="/admin/users" element={
           <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
             <AdminUsers />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/admin/inventory-items" element={
+          <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
+            <InventoryItems />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/admin/manufacturing" element={
+          <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
+            <ManufacturingList />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/admin/manufacturing/:id" element={
+          <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
+            <ManufacturingDetail />
           </ProtectedRoute>
         } />
 
