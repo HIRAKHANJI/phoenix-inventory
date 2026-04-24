@@ -2,7 +2,7 @@ const BaseService = require('./BaseService');
 const path = require('path');
 const fs = require('fs');
 const { jsPDF } = require('jspdf');
-require('jspdf-autotable');
+const autoTable = require('jspdf-autotable');
 
 // Status flow: which transitions are allowed
 const ALLOWED_TRANSITIONS = {
@@ -273,7 +273,7 @@ class ManufacturingService extends BaseService {
       `₹ ${parseFloat(item.cost).toFixed(2)}`,
     ]);
 
-    doc.autoTable({
+    autoTable.default(doc, {
       startY: 76,
       head: [['#', 'Item Name', 'Category', 'Qty Used', 'Cost / Unit', 'Total Cost']],
       body: tableRows,
@@ -289,7 +289,7 @@ class ManufacturingService extends BaseService {
     });
 
     // ── Grand Total
-    const finalY = doc.lastAutoTable.finalY + 6;
+    const finalY = doc.previousAutoTable.finalY + 6;
     doc.setFillColor(10, 36, 99);
     doc.roundedRect(130, finalY, 66, 12, 2, 2, 'F');
     doc.setFontSize(11);
