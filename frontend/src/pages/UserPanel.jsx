@@ -22,7 +22,7 @@ const UserPanel = () => {
 
     doc.setFontSize(10);
     doc.setTextColor(100);
-    doc.text(`Node Report Generated: ${new Date().toLocaleString()}`, 14, 28);
+    doc.text(`Report Generated: ${new Date().toLocaleString()}`, 14, 28);
 
     const rows = filteredStock.map((s) => [
       s.product_name || "—",
@@ -34,14 +34,14 @@ const UserPanel = () => {
 
     autoTable(doc, {
       startY: 35,
-      head: [["Product", "Reference SKU", "Facility Node", "Storage Pin", "Unit Count"]],
+      head: [["Product", "SKU", "Warehouse", "Shelf", "Quantity"]],
       body: rows,
       theme: "grid",
       headStyles: { fillColor: [12, 26, 61] },
       styles: { fontSize: 8 },
     });
 
-    doc.save(`${companyLabel}_Stock_Node_${new Date().toISOString().split("T")[0]}.pdf`);
+    doc.save(`${companyLabel}_Stock_Report_${new Date().toISOString().split("T")[0]}.pdf`);
   };
 
   const handleExportCSV = () => {
@@ -54,7 +54,7 @@ const UserPanel = () => {
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `Node_Dataset_${new Date().toISOString().split('T')[0]}.csv`);
+        link.setAttribute("download", `Inventory_Data_${new Date().toISOString().split('T')[0]}.csv`);
         document.body.appendChild(link);
         link.click();
     } catch (err) {
@@ -87,7 +87,7 @@ const UserPanel = () => {
         <header className="flex justify-between align-center mb-3" style={{ flexWrap: "wrap", gap: "1.5rem" }}>
           <div>
             <h1 style={{ letterSpacing: "-1.5px" }}>Facility <span className="text-accent">Inventory</span></h1>
-            <p className="text-muted" style={{ fontWeight: 600, fontSize: "0.8rem", letterSpacing: "1px" }}>LOCAL FACILITY STOCK OVERVIEW</p>
+            <p className="text-muted" style={{ fontWeight: 600, fontSize: "0.8rem", letterSpacing: "1px" }}>WAREHOUSE STOCK</p>
           </div>
           
           <div className="flex align-center gap-1" style={{ flexWrap: "wrap" }}>
@@ -97,7 +97,7 @@ const UserPanel = () => {
               <span style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", opacity: 0.5 }}>🔍</span>
               <input
                 type="text"
-                placeholder="Filter node cache..."
+                placeholder="Search products..."
                 style={{ paddingLeft: "42px", height: "3.5rem", borderRadius: "12px", fontSize: "0.9rem" }}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -109,17 +109,17 @@ const UserPanel = () => {
         <div className="card glass-card" style={{ padding: 0, borderRadius: "16px", overflow: "hidden" }}>
           <div style={{ padding: "1.5rem 2rem", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
             <h2 style={{ fontSize: "1.1rem", margin: 0 }}>Current Stock</h2>
-            <p className="text-muted" style={{ fontSize: "0.75rem", fontWeight: 600, marginTop: "0.25rem" }}>{filteredStock.length} MATCHING ITEMS IN LOCAL CACHE</p>
+            <p className="text-muted" style={{ fontSize: "0.75rem", fontWeight: 600, marginTop: "0.25rem" }}>{filteredStock.length} TOTAL ITEMS</p>
           </div>
 
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
               <thead style={{ backgroundColor: "rgba(255,255,255,0.02)" }}>
                 <tr>
-                  <th style={{ padding: "1.25rem 2rem", fontSize: "0.65rem", letterSpacing: "1px", color: "var(--text-muted)" }}>ASSET IDENTIFICATION</th>
-                  <th style={{ padding: "1.25rem", fontSize: "0.65rem", letterSpacing: "1px", color: "var(--text-muted)" }}>INTERNAL SKU</th>
-                  <th style={{ padding: "1.25rem", fontSize: "0.65rem", letterSpacing: "1px", color: "var(--text-muted)" }}>STORAGE NODE</th>
-                  <th style={{ padding: "1.25rem", fontSize: "0.65rem", letterSpacing: "1px", color: "var(--text-muted)" }}>STORAGE PIN</th>
+                  <th style={{ padding: "1.25rem 2rem", fontSize: "0.65rem", letterSpacing: "1px", color: "var(--text-muted)" }}>PRODUCT NAME</th>
+                  <th style={{ padding: "1.25rem", fontSize: "0.65rem", letterSpacing: "1px", color: "var(--text-muted)" }}>SKU</th>
+                  <th style={{ padding: "1.25rem", fontSize: "0.65rem", letterSpacing: "1px", color: "var(--text-muted)" }}>WAREHOUSE</th>
+                  <th style={{ padding: "1.25rem", fontSize: "0.65rem", letterSpacing: "1px", color: "var(--text-muted)" }}>SHELF</th>
                   <th style={{ padding: "1.25rem", fontSize: "0.65rem", letterSpacing: "1px", color: "var(--text-muted)" }}>QTY</th>
                   <th style={{ padding: "1.25rem 2rem", fontSize: "0.65rem", letterSpacing: "1px", color: "var(--text-muted)" }}>STATUS</th>
                 </tr>
@@ -162,14 +162,14 @@ const UserPanel = () => {
                         }}>
                           {item.quantity === 0 ? "OUT OF STOCK" :
                            item.quantity < 10 ? "REPLENISH" :
-                           item.quantity < 20 ? "LOW" : "OPTIMAL"}
+                           item.quantity < 20 ? "LOW" : "GOOD"}
                         </span>
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr><td colSpan="6" style={{ textAlign: "center", padding: "4rem" }}>
-                    <div className="text-muted" style={{ fontWeight: 800, letterSpacing: "1px" }}>TARGET INVENTORY NOT FOUND.</div>
+                    <div className="text-muted" style={{ fontWeight: 800, letterSpacing: "1px" }}>NO PRODUCTS FOUND.</div>
                   </td></tr>
                 )}
               </tbody>

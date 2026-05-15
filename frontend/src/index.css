@@ -55,9 +55,9 @@
 .theme-inpack {
   --primary: #111827; /* Near Black for contrast */
   --primary-light: #374151;
-  --accent: #F97316; /* Vibrant Orange */
-  --accent-hover: #EA580C;
-  --success: #22C55E;
+  --accent: #EA580C; /* Darker Orange for better text readability */
+  --accent-hover: #C2410C;
+  --success: #16A34A;
   /* Corporate Green */
 }
 

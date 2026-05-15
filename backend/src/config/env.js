@@ -15,7 +15,7 @@ const env = cleanEnv(process.env, {
 
   // Multi-tenant DB URLs (preferred)
   PHOENIX_DB_URL: str({ default: '' }),
-  IMPACK_DB_URL: str({ default: '' }),
+  INPACK_DB_URL: str({ default: '' }),
   JWT_SECRET: str({ default: process.env.NODE_ENV === 'development' ? 'dev_access_secret' : undefined }),
   JWT_REFRESH_SECRET: str({ default: process.env.NODE_ENV === 'development' ? 'dev_refresh_secret' : undefined }),
   ACCESS_TOKEN_EXPIRY: str({ default: '15m' }),

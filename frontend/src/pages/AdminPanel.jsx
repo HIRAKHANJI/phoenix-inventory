@@ -2,7 +2,12 @@ import Layout from "../components/Layout";
 import { useState, useEffect } from "react";
 import api from "../api/axios";
 import { useAuth } from "../context/AuthContext";
-import { isWarehouse2, isWarehouse3, stockRowKey, LABEL_W2, LABEL_W3 } from "../utils/warehouse";
+import { stockRowKey } from "../utils/warehouse";
+
+const LABEL_W2 = "Warehouse 2";
+const LABEL_W3 = "Warehouse 3";
+const isWarehouse2 = (item) => item.warehouse_name === LABEL_W2;
+const isWarehouse3 = (item) => item.warehouse_name === LABEL_W3;
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "react-hot-toast";
@@ -124,7 +129,7 @@ const AdminPanel = () => {
                         ) : (
                             <tr>
                                 <td colSpan="5" style={{ textAlign: "center", padding: "2rem" }}>
-                                    <div className="text-muted">No stock rows for this facility.</div>
+                                    <div className="text-muted">No stock found for this warehouse.</div>
                                 </td>
                             </tr>
                         )}
@@ -135,7 +140,7 @@ const AdminPanel = () => {
     );
 
     const handleDownloadReport = async () => {
-        const toastId = toast.loading("Assembling Intelligence Report...");
+        const toastId = toast.loading("Creating PDF report...");
         const company = (localStorage.getItem("company") || "phoenix").toLowerCase();
         const companyLabel = company === 'inpack' ? 'Inpack Inventory' : 'Phoenix Stocks';
 
@@ -148,7 +153,7 @@ const AdminPanel = () => {
             // Header
             doc.setFontSize(22);
             doc.setTextColor(12, 26, 61);
-            doc.text(`${companyLabel} - Executive Report`, 14, 22);
+            doc.text(`${companyLabel} - Inventory Report`, 14, 22);
 
             doc.setFontSize(10);
             doc.setTextColor(100);
@@ -157,7 +162,7 @@ const AdminPanel = () => {
             // Section 1: Operations
             doc.setFontSize(14);
             doc.setTextColor(225, 29, 72);
-            doc.text("1. Recent Organizational Operations", 14, 42);
+            doc.text("1. Recent Activity", 14, 42);
 
             const activityData = notifications.map(notif => [
                 new Date(notif.created_at).toLocaleString(),
@@ -167,7 +172,7 @@ const AdminPanel = () => {
 
             autoTable(doc, {
                 startY: 48,
-                head: [["Timestamp", "Operator ID", "Operation Details"]],
+                head: [["Timestamp", "User", "Activity Details"]],
                 body: activityData,
                 theme: 'striped',
                 headStyles: { fillColor: [225, 29, 72] },
@@ -180,7 +185,7 @@ const AdminPanel = () => {
 
             doc.setFontSize(14);
             doc.setTextColor(12, 26, 61);
-            doc.text("2. Global Stock Registry Status", 14, finalY + 14);
+            doc.text("2. Current Stock List", 14, finalY + 14);
 
             const stockData = stock.map(s => {
                 const qty = Number(s.quantity ?? 0);
@@ -190,7 +195,7 @@ const AdminPanel = () => {
                     s.warehouse_name || "—",
                     s.shelf_code || "—",
                     qty.toString(),
-                    qty === 0 ? "OUT OF STOCK" : qty < 20 ? "LOW STOCK" : "OPTIMAL"
+                    qty === 0 ? "OUT OF STOCK" : qty < 20 ? "LOW STOCK" : "GOOD"
                 ];
             });
 
@@ -204,7 +209,7 @@ const AdminPanel = () => {
             });
 
             doc.save(`${companyLabel.replace(' ', '_')}_Executive_Report_${new Date().toISOString().split('T')[0]}.pdf`);
-            toast.success("Intelligence Report securely acquired.", { id: toastId });
+            toast.success("Inventory Report downloaded successfully.", { id: toastId });
         } catch (error) {
             console.error("PDF Export Error:", error);
             toast.error("Failed to generate documentation. Check console for details.", { id: toastId });
@@ -217,7 +222,7 @@ const AdminPanel = () => {
                 <header className="flex justify-between align-center mb-2" style={{ flexWrap: "wrap", gap: "1rem" }}>
                     <div>
                         <h1>Dashboard <span className="text-accent">Overview</span></h1>
-                        <p className="text-muted">Real-time stats across all warehouses and products.</p>
+                        <p className="text-muted">Stats for all warehouses and products.</p>
                     </div>
                     <button onClick={handleDownloadReport} style={{
                         backgroundColor: "var(--accent)",
@@ -264,18 +269,69 @@ const AdminPanel = () => {
 
                     <div className="card" style={{ flex: 1, minWidth: "280px", borderLeft: "4px solid var(--success)" }}>
                         <div className="flex justify-between align-center">
-                            <span className="text-muted" style={{ fontSize: "0.85rem", fontWeight: 700 }}>WAREHOUSE NODES</span>
+                            <span className="text-muted" style={{ fontSize: "0.85rem", fontWeight: 700 }}>WAREHOUSES</span>
                             <span style={{ fontSize: "1.5rem" }}>🏭</span>
                         </div>
                         <p style={{ fontSize: "2.5rem", fontWeight: 800, margin: "0.5rem 0" }}>2</p>
-                        <div className="text-muted" style={{ fontSize: "0.8rem" }}>Operational facilities</div>
+                        <div className="text-muted" style={{ fontSize: "0.8rem" }}>Active warehouses</div>
+                    </div>
+                </div>
+
+                <div className="flex gap-2 mb-2" style={{ flexWrap: "wrap" }}>
+                    <div className="card" style={{ flex: 1, minWidth: "300px" }}>
+                        <h2 style={{ fontSize: "1.1rem", marginBottom: "1.5rem" }}>Stock by <span className="text-accent">Type</span></h2>
+                        <div className="flex flex-column gap-1">
+                            {['raw_material', 'spare_part'].map(cat => {
+                                const count = products.filter(p => p.category === cat).length;
+                                const total = products.length || 1;
+                                const percent = (count / total) * 100;
+                                return (
+                                    <div key={cat}>
+                                        <div className="flex justify-between mb-0.5">
+                                            <span style={{ fontSize: "0.8rem", fontWeight: 700 }}>{cat.replace('_', ' ').toUpperCase()}</span>
+                                            <span style={{ fontSize: "0.8rem", fontWeight: 800 }}>{count} Items ({Math.round(percent)}%)</span>
+                                        </div>
+                                        <div style={{ height: "8px", background: "rgba(255,255,255,0.05)", borderRadius: "4px", overflow: "hidden" }}>
+                                            <div style={{ 
+                                                width: `${percent}%`, height: "100%", 
+                                                background: cat === 'spare_part' ? "#6366f1" : "var(--success)",
+                                                boxShadow: `0 0 10px ${cat === 'spare_part' ? "rgba(99, 102, 241, 0.3)" : "rgba(16, 185, 129, 0.3)"}`
+                                            }} />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <div className="card" style={{ flex: 1, minWidth: "300px" }}>
+                        <h2 style={{ fontSize: "1.1rem", marginBottom: "1.5rem" }}>Warehouse <span className="text-accent">Stock</span></h2>
+                        <div className="flex flex-column gap-1">
+                            {['Warehouse 2', 'Warehouse 3'].map(w => {
+                                const wStock = stock.filter(s => s.warehouse_name === w);
+                                const totalUnits = wStock.reduce((acc, s) => acc + (s.quantity || 0), 0);
+                                const items = wStock.length;
+                                return (
+                                    <div key={w} className="flex justify-between align-center p-1" style={{ background: "rgba(255,255,255,0.02)", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.05)" }}>
+                                        <div>
+                                            <div style={{ fontSize: "0.9rem", fontWeight: 800 }}>{w.toUpperCase()}</div>
+                                            <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>{items} Unique products</div>
+                                        </div>
+                                        <div style={{ textAlign: "right" }}>
+                                            <div style={{ fontSize: "1.25rem", fontWeight: 900, color: "var(--primary)" }}>{totalUnits}</div>
+                                            <div style={{ fontSize: "0.6rem", fontWeight: 700, letterSpacing: "1px" }}>TOTAL UNITS</div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
 
                 <div className="card">
                     <div className="flex justify-between align-center mb-2" style={{ flexWrap: "wrap", gap: "1rem" }}>
                         <div>
-                            <h2 style={{ margin: "0 0 0.35rem 0" }}>Live Analysis</h2>
+                            <h2 style={{ margin: "0 0 0.35rem 0" }}>Stock List</h2>
                             <p className="text-muted" style={{ margin: 0, fontSize: "0.9rem" }}>
                                 {LABEL_W2} and {LABEL_W3} line items (includes legacy registry names mapped to each facility).
                             </p>
@@ -294,7 +350,7 @@ const AdminPanel = () => {
 
                     {loading ? (
                         <div style={{ textAlign: "center", padding: "4rem" }} className="text-muted">
-                            Synchronizing warehouse analysis…
+                            Loading stock data...
                         </div>
                     ) : (
                         <div className="flex gap-1" style={{ flexWrap: "wrap", alignItems: "stretch" }}>

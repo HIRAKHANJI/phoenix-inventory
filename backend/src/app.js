@@ -13,6 +13,8 @@ const productRoutes = require('./routes/productRoutes');
 const stockRoutes = require('./routes/stockRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const userRoutes = require('./routes/userRoutes');
+const inventoryItemRoutes = require('./routes/inventoryItemRoutes');
+const manufacturingRoutes = require('./routes/manufacturingRoutes');
 
 const app = express();
 
@@ -26,7 +28,7 @@ app.use(companyMiddleware);
 // Rate Limiting
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 2000, // limit each IP to 2000 requests per windowMs
   message: 'Too many requests from this IP, please try again later.'
 });
 app.use('/api', apiLimiter);
@@ -37,6 +39,8 @@ app.use('/api/products', productRoutes);
 app.use('/api/stock', stockRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/inventory-items', inventoryItemRoutes);
+app.use('/api/manufacturing', manufacturingRoutes);
 
 app.get('/', (req, res) => {
   res.send('Inventory API Running');

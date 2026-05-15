@@ -5,7 +5,7 @@ const bcrypt = require('bcrypt');
  * @returns { Promise<void> }
  */
 exports.seed = async function(knex) {
-  const existing = await knex('users').where({ email: 'superadmin@phoenic-pack.com' }).first();
+  const existing = await knex('users').where({ email: 'superadmin@phoenix-pack.com' }).first();
   if (existing) {
     return;
   }
@@ -13,7 +13,7 @@ exports.seed = async function(knex) {
   const hashedPassword = await bcrypt.hash('Phoenix786', 10);
   await knex('users').insert({
     name: 'Super Administrator',
-    email: 'superadmin@phoenic-pack.com',
+    email: 'superadmin@phoenix-pack.com',
     password: hashedPassword,
     role: 'super_admin',
     status: 'active',
@@ -21,5 +21,5 @@ exports.seed = async function(knex) {
     company_access: JSON.stringify({})
   });
 
-  console.log('Seeded default super admin account: superadmin@phoenic-pack.com');
+  console.log('Seeded default super admin account: superadmin@phoenix-pack.com');
 };

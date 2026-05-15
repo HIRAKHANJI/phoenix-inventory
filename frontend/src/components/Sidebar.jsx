@@ -7,23 +7,33 @@ const Sidebar = () => {
     const { user, logout } = useAuth();
     const role = user?.role;
     const isAdmin = role === "admin" || role === "super_admin";
+    const isViewer = role === "viewer";
 
     const adminLinks = [
-        { path: "/admin", label: "Analytics", icon: "📊" },
-        { path: "/admin/products", label: "Catalog", icon: "📦" },
-        { path: "/admin/stock", label: "Inventory", icon: "🔄" },
-        { path: "/admin/stock/updates", label: "Updates", icon: "📥" },
+        { path: "/admin", label: "Dashboard", icon: "📊" },
+        { path: "/admin/products", label: "Products", icon: "📦" },
+        { path: "/admin/stock", label: "Stock", icon: "🔄" },
+        { path: "/admin/stock/updates", label: "Update Stock", icon: "📥" },
+        ...(user?.company === 'inpack' ? [{ path: "/admin/manufacturing", label: "Manufacturing", icon: "🏭" }] : []),
         { path: "/admin/users", label: "Users", icon: "👥" },
     ];
 
     const userLinks = [
-        { path: "/user/analytics", label: "Analytics", icon: "📊" },
-        { path: "/user", label: "Warehouse", icon: "🏠" },
-        { path: "/admin/products", label: "Catalog", icon: "📦" },
-        { path: "/user/stock", label: "Updates", icon: "📥" },
+        { path: "/user/analytics", label: "Dashboard", icon: "📊" },
+        { path: "/user", label: "Stock List", icon: "🏠" },
+        { path: "/admin/products", label: "Products", icon: "📦" },
+        { path: "/user/stock", label: "Update Stock", icon: "📥" },
+        ...(user?.company === 'inpack' ? [{ path: "/admin/manufacturing", label: "Manufacturing", icon: "🏭" }] : []),
     ];
 
-    const links = isAdmin ? adminLinks : userLinks;
+    const viewerLinks = [
+        { path: "/user/analytics", label: "Dashboard", icon: "📊" },
+        { path: "/admin/products", label: "Products", icon: "📦" },
+        { path: "/admin/stock", label: "Stock", icon: "🔄" },
+        ...(user?.company === 'inpack' ? [{ path: "/admin/manufacturing", label: "Manufacturing", icon: "🏭" }] : []),
+    ];
+
+    const links = isAdmin ? adminLinks : isViewer ? viewerLinks : userLinks;
 
     const handleLogout = () => {
         logout();
@@ -64,7 +74,7 @@ const Sidebar = () => {
                                 }}
                             >
                                 <span style={{ fontSize: "1.3rem", opacity: location.pathname === link.path ? 1 : 0.6 }}>{link.icon}</span>
-                                <span>{link.label.toUpperCase()}</span>
+                                <span style={{ textTransform: "uppercase" }}>{link.label}</span>
                             </Link>
                         </li>
                     ))}
@@ -89,7 +99,7 @@ const Sidebar = () => {
                         border: "none"
                     }}
                 >
-                    <span>SIGN OUT</span>
+                    <span>LOGOUT</span>
                 </button>
             </div>
         </aside>

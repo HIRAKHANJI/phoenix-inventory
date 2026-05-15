@@ -1,4 +1,4 @@
-const { getDB, normalizeCompany } = require('../config/dbManager');
+const { getDB, getKnex, normalizeCompany } = require('../config/dbManager');
 
 const companyMiddleware = (req, res, next) => {
   const headerCompany = req.header('x-company');
@@ -10,6 +10,7 @@ const companyMiddleware = (req, res, next) => {
   try {
     req.company = company;
     req.db = getDB(company);
+    req.knex = getKnex(company);
     req.companyHeader = headerCompany;
     next();
   } catch (err) {

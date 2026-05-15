@@ -17,7 +17,7 @@ const Login = () => {
 
   const logoSrc = company === "inpack" ? inpackLogo : phoenixLogo;
   const companyName = company === "inpack" ? "Inpack" : "Phoenix";
-  const systemName = company === "inpack" ? "Vault" : "Terminal";
+  const systemName = company === "inpack" ? "Inpack" : "Phoenix";
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -34,7 +34,7 @@ const Login = () => {
       login({ ...response.data, company });
       navigate("/");
     } catch (err) {
-      setError(err.response?.data?.message || "Protocol Verification Failed");
+      setError(err.response?.data?.message || "Login Failed");
     } finally {
       setLoading(false);
     }
@@ -109,7 +109,7 @@ const Login = () => {
             boxShadow: "0 10px 20px rgba(0,0,0,0.1)",
             whiteSpace: "nowrap"
           }}>
-            Secure {systemName} Authorization
+            {companyName} Login
           </div>
 
           <div style={{ textAlign: "center", marginBottom: "2.5rem" }}>
@@ -128,7 +128,7 @@ const Login = () => {
             }}>
               {companyName} <span style={{ color: "var(--accent)", fontWeight: 300 }}>Inventory</span>
             </h1>
-            <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.5rem", fontWeight: 700, letterSpacing: "1px" }}>ENTER PROTOCOL CLEARANCE</p>
+            <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.5rem", fontWeight: 700, letterSpacing: "1px" }}>LOGIN TO YOUR ACCOUNT</p>
           </div>
 
           {/* Premium Segmented Control */}
@@ -170,7 +170,7 @@ const Login = () => {
                 transition: "color 0.3s"
               }}
             >
-              PHOENIX SYSTEM
+              PHOENIX
             </button>
             <button
               onClick={() => setCompany("inpack")}
@@ -187,7 +187,7 @@ const Login = () => {
                 transition: "color 0.3s"
               }}
             >
-              INPACK NODE
+              INPACK
             </button>
           </div>
 
@@ -209,7 +209,7 @@ const Login = () => {
 
           <form onSubmit={handleLogin}>
             <div style={{ marginBottom: "1.5rem" }}>
-              <label style={{ display: "block", marginBottom: "0.6rem", fontSize: "0.65rem", fontWeight: 800, color: "var(--text-muted)", letterSpacing: "1px" }}>IDENTIFICATION</label>
+              <label style={{ display: "block", marginBottom: "0.6rem", fontSize: "0.65rem", fontWeight: 800, color: "var(--text-muted)", letterSpacing: "1px" }}>EMAIL ADDRESS</label>
               <input
                 type="email"
                 placeholder="info@gmail.com"
@@ -228,7 +228,7 @@ const Login = () => {
             </div>
 
             <div style={{ marginBottom: "2.5rem" }}>
-              <label style={{ display: "block", marginBottom: "0.6rem", fontSize: "0.65rem", fontWeight: 800, color: "var(--text-muted)", letterSpacing: "1px" }}>SECURITY KEY</label>
+              <label style={{ display: "block", marginBottom: "0.6rem", fontSize: "0.65rem", fontWeight: 800, color: "var(--text-muted)", letterSpacing: "1px" }}>PASSWORD</label>
               <input
                 type="password"
                 placeholder="••••••••••••"
@@ -266,13 +266,13 @@ const Login = () => {
               }}
               disabled={loading}
             >
-              {loading ? "VERIFYING..." : "GRANT ACCESS"}
+              {loading ? "LOGGING IN..." : "LOGIN"}
             </button>
           </form>
 
           <footer style={{ textAlign: "center", marginTop: "2.5rem" }}>
             <p style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-              No identity established? <Link to="/register" style={{ color: "var(--accent)", fontWeight: 800, textDecoration: "none" }}>Access Registry</Link>
+              Don't have an account? <Link to="/register" style={{ color: "var(--accent)", fontWeight: 800, textDecoration: "none" }}>Register</Link>
             </p>
           </footer>
         </div>

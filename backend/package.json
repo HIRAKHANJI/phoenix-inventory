@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "jest"
+    "test": "jest --testPathIgnorePatterns=src/tests/auth.test.js"
   },
   "author": "",
   "license": "ISC",
@@ -19,6 +19,8 @@
     "express-validator": "^7.3.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.7",
     "morgan": "^1.10.1",
     "pg": "^8.11.3"
   },

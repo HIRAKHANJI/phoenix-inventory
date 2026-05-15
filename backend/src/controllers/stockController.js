@@ -1,38 +1,57 @@
 // ADD STOCK
 const addStock = async (req, res) => {
-  const { product_id, warehouse_id, quantity, shelf_code } = req.body;
+  let { product_id, warehouse_name, warehouse_id, quantity, shelf_code, product_name } = req.body;
 
   try {
+    // Resilience: Resolve product_id if only name was provided
+    if (!product_id && product_name) {
+      const pRes = await req.db.query('SELECT id FROM products WHERE name = $1 LIMIT 1', [product_name]);
+      if (pRes.rows.length > 0) {
+        product_id = pRes.rows[0].id;
+      } else {
+        return res.status(404).json({ message: `Product "${product_name}" not found in catalog.` });
+      }
+    }
+
+    if (!product_id) return res.status(400).json({ message: 'Product ID or valid Product Name is required.' });
+
+    const qtyNum = Number(quantity);
+    if (!Number.isFinite(qtyNum) || qtyNum <= 0) {
+      return res.status(400).json({ message: 'Quantity must be a positive number.' });
+    }
+
+    // Resilience: Map warehouse_id to name if provided by frontend
+    const resolvedWarehouseName = warehouse_name || (Number(warehouse_id) === 1 ? 'Warehouse 2' : Number(warehouse_id) === 2 ? 'Warehouse 3' : 'Main Warehouse');
+
     const existing = await req.db.query(
-      'SELECT * FROM inventory WHERE product_id=$1 AND warehouse_id=$2',
-      [product_id, warehouse_id]
+      'SELECT * FROM stock WHERE product_id=$1 AND warehouse_name=$2 AND shelf_code=$3',
+      [product_id, resolvedWarehouseName, shelf_code || 'N/A']
     );
 
     let result;
-
     if (existing.rows.length > 0) {
       result = await req.db.query(
-        'UPDATE inventory SET quantity = quantity + $1 WHERE id=$2 RETURNING *',
-        [quantity, existing.rows[0].id]
+        'UPDATE stock SET quantity = quantity + $1, updated_at = NOW() WHERE id=$2 RETURNING *',
+        [qtyNum, existing.rows[0].id]
       );
     } else {
       result = await req.db.query(
-        'INSERT INTO inventory (product_id, warehouse_id, quantity, shelf_code) VALUES ($1,$2,$3,$4) RETURNING *',
-        [product_id, warehouse_id, quantity, shelf_code]
+        'INSERT INTO stock (product_id, warehouse_name, quantity, shelf_code) VALUES ($1,$2,$3,$4) RETURNING *',
+        [product_id, resolvedWarehouseName, qtyNum, shelf_code || 'N/A']
       );
     }
 
-    // Fetch product name
-    const prodRes = await req.db.query('SELECT name FROM products WHERE id = $1', [product_id]);
-    const productName = prodRes.rows.length > 0 ? prodRes.rows[0].name : product_id;
 
     // Notification trigger
+    const prodRes = await req.db.query('SELECT name FROM products WHERE id = $1', [product_id]);
+    const productName = prodRes.rows[0]?.name || product_id;
     const user_name = req.user?.name || "System";
-    const notificationMessage = `Stock ADDED: ${quantity} units to ${productName} in warehouse ${warehouse_id} by ${user_name}`;
+    const notificationMessage = `Stock ADDED: ${qtyNum} units to ${productName} in ${resolvedWarehouseName} by ${user_name}`;
+    
     await req.db.query(
-      'INSERT INTO notifications (message, user_name) VALUES ($1, $2)',
-      [notificationMessage, user_name]
-    );
+      'INSERT INTO notifications (message, user_name, type) VALUES ($1, $2, $3)',
+      [notificationMessage, user_name, 'STOCK_UPDATE']
+    ).catch(() => {});
 
     res.json(result.rows[0]);
   } catch (err) {
@@ -42,38 +61,54 @@ const addStock = async (req, res) => {
 
 // REMOVE STOCK
 const removeStock = async (req, res) => {
-  const { product_id, warehouse_id, quantity, shelf_code } = req.body;
+  let { product_id, warehouse_name, warehouse_id, quantity, shelf_code, product_name } = req.body;
 
   try {
-    const existing = await req.db.query(
-      'SELECT * FROM inventory WHERE product_id=$1 AND warehouse_id=$2',
-      [product_id, warehouse_id]
-    );
-
-    if (existing.rows.length === 0) {
-      return res.status(400).json({ message: 'No stock found' });
+    // Resilience: Resolve product_id if only name was provided
+    if (!product_id && product_name) {
+      const pRes = await req.db.query('SELECT id FROM products WHERE name = $1 LIMIT 1', [product_name]);
+      if (pRes.rows.length > 0) {
+        product_id = pRes.rows[0].id;
+      } else {
+        return res.status(404).json({ message: `Product "${product_name}" not found in catalog.` });
+      }
     }
 
-    if (existing.rows[0].quantity < quantity) {
-      return res.status(400).json({ message: 'Not enough stock' });
+    if (!product_id) return res.status(400).json({ message: 'Product ID or valid Product Name is required.' });
+
+    const qtyNum = Number(quantity);
+    if (!Number.isFinite(qtyNum) || qtyNum <= 0) {
+      return res.status(400).json({ message: 'Quantity must be a positive number.' });
+    }
+
+    // Resilience: Map warehouse_id to name if provided by frontend
+    const resolvedWarehouseName = warehouse_name || (Number(warehouse_id) === 1 ? 'Warehouse 2' : Number(warehouse_id) === 2 ? 'Warehouse 3' : 'Main Warehouse');
+
+    const existing = await req.db.query(
+      'SELECT * FROM stock WHERE product_id=$1 AND warehouse_name=$2 AND shelf_code=$3',
+      [product_id, resolvedWarehouseName, shelf_code || 'N/A']
+    );
+
+    const onHand = existing.rows[0] ? Number(existing.rows[0].quantity) : 0;
+    if (existing.rows.length === 0 || onHand < qtyNum) {
+      return res.status(400).json({ message: 'Insufficient stock or record not found in this location.' });
     }
 
     const updated = await req.db.query(
-      'UPDATE inventory SET quantity = quantity - $1 WHERE id=$2 RETURNING *',
-      [quantity, existing.rows[0].id]
+      'UPDATE stock SET quantity = quantity - $1, updated_at = NOW() WHERE id=$2 RETURNING *',
+      [qtyNum, existing.rows[0].id]
     );
 
-    // Fetch product name
+
     const prodRes = await req.db.query('SELECT name FROM products WHERE id = $1', [product_id]);
-    const productName = prodRes.rows.length > 0 ? prodRes.rows[0].name : product_id;
-
-    // Notification trigger
+    const productName = prodRes.rows[0]?.name || product_id;
     const user_name = req.user?.name || "System";
-    const notificationMessage = `Stock REMOVED: ${quantity} units from ${productName} in warehouse ${warehouse_id} by ${user_name}`;
+    const notificationMessage = `Stock REMOVED: ${qtyNum} units from ${productName} in ${resolvedWarehouseName} by ${user_name}`;
+    
     await req.db.query(
-      'INSERT INTO notifications (message, user_name) VALUES ($1, $2)',
-      [notificationMessage, user_name]
-    );
+      'INSERT INTO notifications (message, user_name, type) VALUES ($1, $2, $3)',
+      [notificationMessage, user_name, 'STOCK_UPDATE']
+    ).catch(() => {});
 
     res.json(updated.rows[0]);
   } catch (err) {
@@ -81,100 +116,36 @@ const removeStock = async (req, res) => {
   }
 };
 
-// GET STOCK — primary `inventory` rows, plus legacy `stock` table rows when present (deduped).
-const stockRowKey = (r) => `${r.product_id}-${r.warehouse_id ?? 'null'}-${(r.shelf_code || '').trim()}`;
-
+// GET STOCK
 const getStock = async (req, res) => {
   try {
-    let inventoryRows = [];
-    try {
-      const inv = await req.db.query(
-        `SELECT i.id, i.product_id, p.name AS product_name, p.sku AS product_sku,
-                w.id AS warehouse_id, w.name AS warehouse_name, i.quantity, i.shelf_code,
-                'inventory' AS source
-         FROM inventory i
-         JOIN products p ON i.product_id = p.id
-         JOIN warehouses w ON i.warehouse_id = w.id`
-      );
-      inventoryRows = inv.rows;
-    } catch (e) {
-      if (e.code !== '42P01') throw e;
-    }
-
-    let legacyRows = [];
-    try {
-      const leg = await req.db.query(
-        `SELECT s.id, s.product_id,
-                p.name AS product_name, p.sku AS product_sku,
-                w.id AS warehouse_id,
-                COALESCE(w.name, s.warehouse_name) AS warehouse_name,
-                s.quantity, s.shelf_code,
-                'stock' AS source
-         FROM stock s
-         JOIN products p ON s.product_id = p.id
-         LEFT JOIN warehouses w ON w.id = (
-           CASE
-             WHEN s.warehouse_name ILIKE '%2nd warehouse%' OR TRIM(s.warehouse_name) = 'Warehouse 2' THEN 1
-             WHEN s.warehouse_name ILIKE '%3rd warehouse%' OR TRIM(s.warehouse_name) = 'Warehouse 3' THEN 2
-             ELSE (SELECT id FROM warehouses w2 WHERE w2.name = s.warehouse_name LIMIT 1)
-           END
-         )`
-      );
-      legacyRows = leg.rows;
-    } catch (e) {
-      if (e.code !== '42P01') throw e;
-    }
-
-    const seen = new Set(inventoryRows.map(stockRowKey));
-    const merged = [
-      ...inventoryRows,
-      ...legacyRows.filter((r) => !seen.has(stockRowKey(r))),
-    ];
-
-    res.json(merged);
+    const stock = await req.db.query(
+      `SELECT s.id, s.product_id, p.name AS product_name, p.sku AS product_sku, p.category,
+              s.warehouse_name, s.quantity, s.shelf_code, s.updated_at
+       FROM stock s
+       JOIN products p ON s.product_id = p.id
+       ORDER BY p.name ASC`
+    );
+    res.json(stock.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
-// UPDATE STOCK ITEM (Direct adjustment — handles both inventory and legacy stock tables)
+// UPDATE STOCK ITEM
 const updateStockItem = async (req, res) => {
   const { id } = req.params;
-  const { quantity, shelf_code, source } = req.body;
+  const { quantity, shelf_code } = req.body;
 
   try {
-    let result;
-    let productId;
-
-    if (source === 'stock') {
-      // Legacy stock table
-      result = await req.db.query(
-        'UPDATE stock SET quantity = $1, shelf_code = $2 WHERE id = $3 RETURNING *',
-        [quantity, shelf_code, id]
-      );
-      productId = result.rows[0]?.product_id;
-    } else {
-      // Primary inventory table
-      result = await req.db.query(
-        'UPDATE inventory SET quantity = $1, shelf_code = $2 WHERE id = $3 RETURNING *',
-        [quantity, shelf_code, id]
-      );
-      productId = result.rows[0]?.product_id;
-    }
-
-    if (!result || result.rows.length === 0) {
-      return res.status(404).json({ message: 'Stock record not found' });
-    }
-
-    const prodRes = await req.db.query('SELECT name FROM products WHERE id = $1', [productId]);
-    const productName = prodRes.rows.length > 0 ? prodRes.rows[0].name : `Record ID ${id}`;
-
-    const user_name = req.user?.name || "System";
-    const notificationMessage = `Stock ADJUSTED: ${productName} set to ${quantity} units by ${user_name}`;
-    await req.db.query(
-      'INSERT INTO notifications (message, user_name) VALUES ($1, $2)',
-      [notificationMessage, user_name]
+    const result = await req.db.query(
+      'UPDATE stock SET quantity = $1, shelf_code = $2, updated_at = NOW() WHERE id = $3 RETURNING *',
+      [quantity, shelf_code, id]
     );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Stock record not found.' });
+    }
 
     res.json(result.rows[0]);
   } catch (err) {
@@ -182,24 +153,15 @@ const updateStockItem = async (req, res) => {
   }
 };
 
-// DELETE STOCK ITEM (Remove from warehouse — handles both tables)
+// DELETE STOCK ITEM
 const deleteStockItem = async (req, res) => {
   const { id } = req.params;
-  const source = req.query.source || req.body?.source;
-
   try {
-    let result;
-    if (source === 'stock') {
-      result = await req.db.query('DELETE FROM stock WHERE id = $1 RETURNING *', [id]);
-    } else {
-      result = await req.db.query('DELETE FROM inventory WHERE id = $1 RETURNING *', [id]);
-    }
-
+    const result = await req.db.query('DELETE FROM stock WHERE id = $1 RETURNING *', [id]);
     if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Stock record not found' });
+      return res.status(404).json({ message: 'Stock record not found.' });
     }
-
-    res.json({ message: 'Stock record removed from warehouse' });
+    res.json({ message: 'Stock record removed.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

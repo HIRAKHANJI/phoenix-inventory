@@ -1,15 +1,18 @@
-/** Canonical labels match `warehouses` ids 1 / 2 used by the API after normalization. */
-export const LABEL_W2 = "Warehouse 2";
-export const LABEL_W3 = "Warehouse 3";
-
-export function isWarehouse2(item) {
-  return item.warehouse_id === 1 || item.warehouse_name === LABEL_W2;
-}
-
-export function isWarehouse3(item) {
-  return item.warehouse_id === 2 || item.warehouse_name === LABEL_W3;
-}
+/** Utility for stock row deduplication — location is now free-text, no hardcoded warehouses. */
 
 export function stockRowKey(item) {
   return `${item.source || 'inv'}-${item.id}`;
+}
+
+/**
+ * Groups an array of stock items by their warehouse_name field.
+ * Returns an object like: { "Main Store": [...items], "Shelf A": [...items] }
+ */
+export function groupByLocation(items) {
+  return items.reduce((groups, item) => {
+    const location = item.warehouse_name || 'Unassigned';
+    if (!groups[location]) groups[location] = [];
+    groups[location].push(item);
+    return groups;
+  }, {});
 }

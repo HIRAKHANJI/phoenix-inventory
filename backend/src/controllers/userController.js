@@ -5,13 +5,81 @@ const getAllUsers = async (req, res) => {
     const params = [];
 
     if (req.user.role === 'admin') {
-      query += ' WHERE role = $1';
-      params.push('user');
+      query += ' WHERE role IN ($1, $2)';
+      params.push('user', 'viewer');
     }
 
-    query += ' ORDER BY created_at DESC';
+    query += ' ORDER BY CASE WHEN status = \'pending\' THEN 0 ELSE 1 END, created_at DESC';
     const result = await req.db.query(query, params);
     res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// APPROVE a pending user (super_admin/admin only)
+const approveUser = async (req, res) => {
+  const { id } = req.params;
+  const { role } = req.body;
+
+  const allowedRoles = ['user', 'admin', 'viewer'];
+  if (req.user.role === 'admin') {
+    // Admins can only assign 'user' or 'viewer'
+    if (!['user', 'viewer'].includes(role)) {
+      return res.status(403).json({ message: 'Admin can only assign User or Viewer roles.' });
+    }
+  } else if (req.user.role === 'super_admin') {
+    if (!allowedRoles.includes(role)) {
+      return res.status(400).json({ message: `Invalid role. Must be one of: ${allowedRoles.join(', ')}` });
+    }
+  } else {
+    return res.status(403).json({ message: 'Only administrators can approve users.' });
+  }
+
+  try {
+    const userRes = await req.db.query('SELECT * FROM users WHERE id = $1', [id]);
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    if (userRes.rows[0].status !== 'pending') {
+      return res.status(400).json({ message: 'This user has already been processed.' });
+    }
+
+    const result = await req.db.query(
+      'UPDATE users SET status = $1, role = $2 WHERE id = $3 RETURNING id, name, email, role, status',
+      ['active', role, id]
+    );
+
+    // Send notification about the approval
+    const alertMsg = `User Approved: ${result.rows[0].name} has been granted "${role}" access by ${req.user.name}.`;
+    await req.db.query(
+      'INSERT INTO notifications (message, user_name, type) VALUES ($1, $2, $3)',
+      [alertMsg, req.user.name, 'USER_APPROVED']
+    ).catch(() => {});
+
+    res.json({ message: `User "${result.rows[0].name}" approved as ${role.toUpperCase()}.`, user: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// REJECT a pending user (delete from DB)
+const rejectUser = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const userRes = await req.db.query('SELECT * FROM users WHERE id = $1', [id]);
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    if (userRes.rows[0].status !== 'pending') {
+      return res.status(400).json({ message: 'Only pending users can be rejected.' });
+    }
+
+    const result = await req.db.query('DELETE FROM users WHERE id = $1 RETURNING name, email', [id]);
+    res.json({ message: `Registration for "${result.rows[0].name}" has been rejected.` });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -32,17 +100,12 @@ const updateUser = async (req, res) => {
 
     // Hierarchy Enforcement
     if (req.user.role === 'admin') {
-      if (targetRole !== 'user') {
+      if (!['user', 'viewer'].includes(targetRole)) {
         return res.status(403).json({ message: 'Security Protocol: Administrative oversight restricted to standard Personnel.' });
       }
-      if (role && role !== 'user') {
-        return res.status(403).json({ message: 'Security Protocol: Administrative access cannot modify clearance levels.' });
+      if (role && !['user', 'viewer'].includes(role)) {
+        return res.status(403).json({ message: 'Security Protocol: Administrative access cannot elevate to admin level.' });
       }
-    }
-
-    if (req.user.role === 'super_admin') {
-      // Super Admin can do almost anything, but let's prevent accidental self-demotion if they are the only ones
-      // though for now we follow "full power"
     }
 
     if (parseInt(id) === req.user.id) {
@@ -96,7 +159,7 @@ const deleteUser = async (req, res) => {
     }
 
     const targetRole = targetRes.rows[0].role;
-    if (req.user.role === 'admin' && targetRole !== 'user') {
+    if (req.user.role === 'admin' && !['user', 'viewer'].includes(targetRole)) {
       return res.status(403).json({ message: 'Admin access may only revoke standard users.' });
     }
 
@@ -133,4 +196,4 @@ const grantClearance = async (req, res) => {
   }
 };
 
-module.exports = { getAllUsers, updateUser, deleteUser, grantClearance };
+module.exports = { getAllUsers, approveUser, rejectUser, updateUser, deleteUser, grantClearance };

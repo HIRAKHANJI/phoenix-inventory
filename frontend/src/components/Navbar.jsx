@@ -86,7 +86,7 @@ const Navbar = ({ company: propsCompany }) => {
       <div className="flex align-center gap-2">
         {!isAuthenticated ? (
           <div className="flex gap-1 align-center">
-            <Link to="/login" style={{ color: "var(--primary)", fontWeight: 700, textDecoration: "none", fontSize: "0.75rem", letterSpacing: "1px" }}>SIGN IN</Link>
+            <Link to="/login" style={{ color: "var(--primary)", fontWeight: 700, textDecoration: "none", fontSize: "0.75rem", letterSpacing: "1px" }}>LOGIN</Link>
             <div style={{ width: "1px", height: "12px", backgroundColor: "var(--border)" }}></div>
             <Link to="/register" style={{ color: "var(--accent)", fontWeight: 700, textDecoration: "none", fontSize: "0.75rem", letterSpacing: "1px" }}>REGISTER</Link>
           </div>
@@ -98,7 +98,7 @@ const Navbar = ({ company: propsCompany }) => {
                   {user.name || "UNIDENTIFIED"}
                 </div>
                 <div style={{ fontSize: "0.65rem", fontWeight: 900, color: "var(--accent)", letterSpacing: "1px", textTransform: "uppercase" }}>
-                  {role === 'super_admin' ? 'SUPER ADMIN' : role === 'admin' ? 'ADMIN ACCESS' : 'USER ACCESS'}
+                  {role === 'super_admin' ? 'SUPER ADMIN' : role === 'admin' ? 'ADMIN' : role === 'viewer' ? 'VIEWER' : 'USER'}
                 </div>
               </div>
             </div>
@@ -157,11 +157,11 @@ const Navbar = ({ company: propsCompany }) => {
                   border: "1px solid var(--border)"
                 }}>
                   <div className="flex justify-between align-center mb-1 pb-1" style={{ borderBottom: "1px solid var(--border)" }}>
-                    <h3 style={{ fontSize: "0.8rem", margin: 0, letterSpacing: "1px", color: "var(--primary)" }}>SECURITY LOGS</h3>
+                    <h3 style={{ fontSize: "0.8rem", margin: 0, letterSpacing: "1px", color: "var(--primary)" }}>NOTIFICATIONS</h3>
                     <span style={{ fontSize: "0.6rem", fontWeight: 800, background: "rgba(0,0,0,0.05)", padding: "0.2rem 0.5rem", borderRadius: "10px" }}>{unreadCount} NEW</span>
                   </div>
                   {notifications.length === 0 ? (
-                    <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", textAlign: "center", padding: "2rem 0" }}>No updates synchronization required.</p>
+                    <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", textAlign: "center", padding: "2rem 0" }}>No new notifications.</p>
                   ) : (
                     <div className="flex flex-column gap-1">
                       {notifications.map(n => (
@@ -206,7 +206,7 @@ const Navbar = ({ company: propsCompany }) => {
                 gap: "0.6rem"
               }}
             >
-              SIGN OUT
+              LOGOUT
             </button>
           </>
         )}
